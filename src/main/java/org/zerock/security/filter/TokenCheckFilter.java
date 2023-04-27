@@ -5,7 +5,11 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.zerock.security.APIUserDetailsService;
 import org.zerock.security.exception.AccessTokenException;
 import org.zerock.util.JWTUtil;
 
@@ -22,6 +26,7 @@ import static org.zerock.security.exception.AccessTokenException.TOKEN_ERROR.*;
 @RequiredArgsConstructor
 public class TokenCheckFilter extends OncePerRequestFilter {
 
+    private final APIUserDetailsService apiUserDetailsService;
     private final JWTUtil jwtUtil;
 
     @Override
@@ -38,7 +43,21 @@ public class TokenCheckFilter extends OncePerRequestFilter {
         log.info("jwtUtil = " + jwtUtil);
 
         try {
-            validateAccessToken(request);
+            Map<String, Object> payload = validateAccessToken(request);
+
+            // mid
+            String mid = (String) payload.get("mid");
+
+            log.info("mid = " + mid);
+
+            UserDetails userDetails = apiUserDetailsService.loadUserByUsername(mid);
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
             filterChain.doFilter(request, response);
         } catch (AccessTokenException accessTokenException) {
             accessTokenException.sendResponseError(response);
